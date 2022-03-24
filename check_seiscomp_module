@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Nagios NRPE plugin to report status of SeisComP modules.
+# This plugin relies on information provided by
+# the SeisComP scsohlog module.
+
+# Created by G.Rapagnani - Royal Observatory of Belgium
+
+
+# Exports
+
+export LANG='C' TZ='UTC'
+export PATH='/usr/local/bin:/usr/bin:/bin'
+
+
+# Configuration
+
+MODULE_RESPONSE_FILE="/dev/shm/seiscomp_modules_nrpe_monitor-responsetime.txt"
+WARNING_THRESHOLD=240 # [sec] response time higher than this -> WARNING
+CRITICAL_THRESHOLD=480 # [sec] response time higher than this -> CRITICAL
+
+
+# Constants
+
+PROGNAME="$(basename -- "$0")"
+
+
+# Functions
+
+print_and_exit() {
+    # $1: exit code
+    # $2: message to print
+    local retcode="$1" msg="$2" result="3"
+
+    case "$retcode" in
+        0) result="OK" ;;
+        1) result="WARNING" ;;
+        2) result="CRITICAL" ;;
+        *) result="UNKNOWN" ;;
+    esac
+
+    echo "$result: $msg" >&1
+    exit "$retcode"
+}
+
+get_module_response_time() {
+    # retrieve the responsetime from the file
+
+    # $1: module name
+
+    local modulename="$1"
+    local responsetime="" curtime="$(date +%s)" fmodtime=""
+
+    fmodtime="$(head -n 1 "$MODULE_RESPONSE_FILE" \
+        | grep '^lastupdate' | cut -d ':' -f 2)"
+
+    if [ -n "$fmodtime" ] && [[ "$fmodtime" =~ ^[0-9][0-9]*$ ]]; then
+        responsetime="$(grep "^$modulename," "$MODULE_RESPONSE_FILE" \
+            | cut -d ',' -f 2)"
+    fi
+
+    if [ -n "$responsetime" ] && [[ "$responsetime" =~ ^[0-9][0-9]*$ ]]; then
+        let responsetime+="$((curtime-fmodtime))"
+    fi
+
+    echo "$responsetime"
+}
+
+seconds_to_human_readable() {
+    # Convert seconds value to human-friendly message
+
+    # $1: elapsed time value in seconds
+
+    local elapsed_time="$1"
+    local msg="" value=""
+    local -a unit=([60]="min" [3600]="hour" [86400]="day")
+
+    for basevalue in 86400 3600 60; do
+        if [ "$elapsed_time" -ge "$basevalue" ]; then
+            value="$((elapsed_time/$basevalue))"
+            elapsed_time="$((elapsed_time%$basevalue))"
+            msg+="${msg:+ }$value ${unit[$basevalue]}"
+        fi
+    done
+
+    [ "$elapsed_time" -gt 0 ] && msg+="${msg:+ }$elapsed_time sec"
+
+    echo "${msg:-0 sec}"
+}
+
+main() {
+    local modulename="$1" responsetime="" msg=""
+
+    [ -z "$modulename" ] && print_and_exit 3 \
+        "usage: $PROGNAME <seiscomp_module_name>"
+
+    [ ! -f "$MODULE_RESPONSE_FILE" ] && sleep 2s
+
+    [ ! -f "$MODULE_RESPONSE_FILE" ] && print_and_exit 3 \
+        "Responsetime file \"$MODULE_RESPONSE_FILE\" not found"
+
+    # get response time of given module
+    responsetime="$(get_module_response_time "$modulename")"
+
+    [ -z "$responsetime" ] && print_and_exit 3 \
+        "could not find response time"
+
+    msg="$(seconds_to_human_readable $responsetime) since last response"
+
+    [ "$responsetime" -gt "$CRITICAL_THRESHOLD" ] && print_and_exit 2 "$msg"
+
+    [ "$responsetime" -gt "$WARNING_THRESHOLD" ] && print_and_exit 1 "$msg"
+
+    print_and_exit 0 "$msg"
+}
+
+main "$@"
+

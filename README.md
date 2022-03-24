@@ -73,7 +73,7 @@ monitor.output.script = "<fullpath_to_user_directory>/bin/parse_scsohlog_data.py
 
 ### Configuration of the plugin files
 
-* The script `parse_scsohlog_data.py` need to know the path to the `server.xml`
+* The script `parse_scsohlog_data.py` needs to know the path to the `server.xml`
 file. Set the variable `SCSOHLOG_XMLFILE` accordingly when necessary.
 
 * The script `parse_scsohlog_data.py` uses a file to record the values of the
@@ -91,7 +91,8 @@ the sole usage of the NRPE server.
 the delay since the last change of the value of a module's monitored SOH
 parameter reaches either the WARNING or CRITICAL threshold, the plugin script
 will report resepectively a WARNING or CRITICAL state for that module.
-The thresholds are defined through the variables below, by default 4 minutes and 8 minutes:
+The thresholds are defined through the variables below, by default to 4 minutes
+and 8 minutes:
 
     * `WARNING_THRESHOLD`: response time threshold, in seconds, above which a WARNING state is reported
     * `CRITICAL_THRESHOLD`: response time threshold, in seconds, above which a CRITICAL state is reported
